@@ -50,6 +50,13 @@ class Market:
 class Notation:
     market: Market
     id: str
+    open: float
+    low: float
+    high: float
+    last: float
+    ask: float
+    bid: float
+    isoCurrency: str
 
 
 @dataclasses.dataclass(init=False)
@@ -122,7 +129,10 @@ def _add_notation(instrument: Instrument, notations: dict):
     """
     for notation in notations:
         market = Market(name=notation["market"]["name"], code=notation["market"]["codeExchange"])
-        notation = Notation(market=market, id=notation["market"]["idNotation"])
+        
+        notation = Notation(market=market, id=notation["market"]["idNotation"],
+                             open=notation['open'], low=notation['low'], high=notation['high'], last=notation['last'],
+                             ask=notation.get('ask', None), bid=notation.get('bid', None), isoCurrency=notation['isoCurrency'])
         instrument.notations.append(notation)
 
 

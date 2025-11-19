@@ -1,0 +1,92 @@
+Metadata-Version: 2.4
+Name: pyonvista
+Version: 0.8.3
+Summary: A tiny python API wrapper for onvista.de financial website.
+Home-page: https://github.com/cloasdata/pyonvista
+Author: Simon Bauer
+Author-email: Simon Bauer <seimen@cloasdata.de>
+License: MIT License
+        
+        Copyright (c) 2021 - 2022 Simon Bauer
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+Project-URL: Homepage, https://github.com/cloasdata/pyonvista
+Keywords: API,onvista,aiohttp,finance
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: aiohttp>=3.8.0
+Requires-Dist: importlib; python_version >= "3.10"
+Provides-Extra: test
+Requires-Dist: pytest>=7.0.0; extra == "test"
+Dynamic: license-file
+
+# pyonvista
+A tiny python wrapper to the non-public onvista.de REST-Api.
+
+As the API is not public user shall assume that the usage of this package harms the
+website user agreements. However, this version now avoids any web scrapping for metadata.
+
+You can search for an instrument and get its quote data. 
+The quote data can be limit by resolution and date.
+
+The wrapper now also works with instruments other than stocks. Also for example data from ETF
+can be requested. 
+
+Im not planing to add other API Endpoints at the moment as long as nobody gives me a good reason for this.
+
+Additionally the wrapper now is asynchronous. User should be aware of asyncio or async programming.
+
+
+## Installation
+    pip install pyonvista
+
+## Usage
+```python
+import asyncio
+import aiohttp
+import pprint
+
+from pyonvista import PyOnVista
+
+async def main():
+    client = aiohttp.ClientSession()
+    api = PyOnVista()
+    await api.install_client(client)
+    async with client:
+        instruments = await api.search_instrument("VW")
+        instrument = await api.request_instrument(instruments[0])
+        quotes = await api.request_quotes(instrument, )
+        pprint.pprint(instrument)
+        pprint.pprint(quotes[:3])
+        # prints a lot of information of VW Stonk
+        # try a etf
+        instruments = await api.search_instrument(key="IE00B42NKQ00")
+        quotes = await api.request_quotes(instruments[0])
+    pprint.pprint(quotes[0].instrument)
+
+    await client.close()
+    await asyncio.sleep(.1)
+
+if __name__ == '__main__':
+    asyncio.run(main())
+```

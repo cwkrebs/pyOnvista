@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyonvista"
+version = "0.8.3"
+description = "A tiny python API wrapper for onvista.de financial website."
+readme = "README.md"
+license = { file = "LICENSE" }
+keywords = ["API", "onvista", "aiohttp", "finance"]
+authors = [
+    {name = "Simon Bauer", email = "seimen@cloasdata.de"}
+]
+dependencies = [
+    "aiohttp >= 3.8.0",
+    'importlib; python_version >= "3.10"'
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent"
+]
+requires-python = ">=3.6"
+urls = { Homepage = "https://github.com/cloasdata/pyonvista" }
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+zip-safe = false
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.optional-dependencies]
+test = [
+    "pytest >= 7.0.0"
+]

@@ -267,8 +267,16 @@ class PyOnVista:
                 data["numberPrices"]
             )
             for date, first, last, high, low, volume, pieces in quotes:
+                # OnVista is inconsistent with timestamp units.
+                # When the values are very large (>1e12) they appear to be
+                # milliseconds, otherwise they are seconds.  The old
+                # implementation blindly divided by 1000, which produced
+                # dates around 1970 when the value was actually seconds.
+                ts_val = date
+                if ts_val > 1e12:
+                    ts_val = ts_val / 1000
                 result.append(
-                    Quote(resolution, datetime.datetime.fromtimestamp(date / 1000), first, high, low, last, volume,
+                    Quote(resolution, datetime.datetime.fromtimestamp(ts_val), first, high, low, last, volume,
                           pieces, instrument)
                 )
 

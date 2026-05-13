@@ -24,6 +24,15 @@ ONVISTA_API_BASE = "https://api.onvista.de/api/v1"
 snapshot_map = {
     "FUND": "funds",
     "STOCK": "stocks",
+    "BOND": "bonds",
+    "DERIVATIVE": "derivatives",
+    "INDEX": "indices",
+    "CERTIFICATE": "certificates",
+    "CURRENCY": "currencies",
+    "COMMODITY": "commodities",
+    "OPTION": "options",
+    "FUTURE": "futures",
+    "WARRANT": "warrants",
 }
 
 @dataclasses.dataclass
@@ -165,23 +174,63 @@ class PyOnVista:
 
     async def _get_json(self, url, *args, **kwargs) -> dict:
         """
-        A wrapper avoiding boiler plate code
+        A wrapper avoiding boiler plate code with per-request User-Agent rotation.
         :param url:
         :param args:
         :param kwargs:
-        :return:
+        :return: dict or None if request fails
         """
+        import random
+        
+        # Rotate User-Agent per request for better rate limit avoidance
+        # Import common browser User-Agent strings
+        USER_AGENTS = [
+            # Chrome
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+            # Firefox
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:135.0) Gecko/20100101 Firefox/135.0",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 14.7; rv:135.0) Gecko/20100101 Firefox/135.0",
+            "Mozilla/5.0 (X11; Linux i686; rv:135.0) Gecko/20100101 Firefox/135.0",
+            # Safari
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15",
+            # Edge
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 Edg/131.0.2903.86"
+        ]
+        
+        # Prepare headers with rotated User-Agent
+        request_headers = dict(kwargs.get('headers', {}))
+        request_headers['User-Agent'] = random.choice(USER_AGENTS)
+        kwargs['headers'] = request_headers
+        
         async with self._client.get(url, *args, **kwargs) as response:
             if response.status < 300:
                 return dict(await response.json())
+            else:
+                # Log failed requests for debugging
+                text = await response.text()
+                print(f"Warning: API request failed with status {response.status}: {url}")
+                if text:
+                    print(f"  Response: {text[:200]}")
+                return None
+
 
     async def search_instrument(self, key: str) -> list[Instrument]:
         url = make_url(ONVISTA_API_BASE, *["instruments", "search", "facet"], perType=10, searchValue=key)
         json = await self._get_json(url)
-        facets = json["facets"]
+        if json is None:
+            print(f"Error: Failed to search for instrument '{key}' — API request failed")
+            return []
+        
+        facets = json.get("facets", [])
+        if not facets:
+            print(f"Warning: No facets found for instrument '{key}' in API response")
+            return []
+        
         res = []
         for facet in facets:
-            if results := facet["results"]:
+            if results := facet.get("results"):
                 res.extend(
                     [Instrument.from_json(data) for data in results]
                 )
@@ -214,11 +263,21 @@ class PyOnVista:
             "/snapshot"
                        )
         data = await self._get_json(url)
+        if data is None:
+            # API returned a non-2xx response — instrument type not supported or URL path wrong.
+            # Return the instrument with whatever info came from search_instrument (notations=[]).
+            print(f"Warning: Failed to load instrument details for ISIN {isin}")
+            return instrument
+        if not data.get("instrument"):
+            print(f"Warning: No 'instrument' data in API response for ISIN {isin}")
+            return instrument
         if instrument:
-            _update_instrument(instrument, data["instrument"])
+            _update_instrument(instrument, data.get("instrument", {}))
         else:
-            instrument = Instrument.from_json(data["instrument"])
-        _add_notation(instrument, notations=data["quoteList"]["list"])
+            instrument = Instrument.from_json(data.get("instrument", {}))
+        quote_list = data.get("quoteList", {}).get("list", [])
+        if quote_list:
+            _add_notation(instrument, notations=quote_list)
         return instrument
 
     async def request_quotes(

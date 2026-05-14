@@ -146,10 +146,11 @@ def _add_notation(instrument: Instrument, notations: dict):
 
 
 class PyOnVista:
-    def __init__(self):
+    def __init__(self, proxies: list[str] | None = None):
         self._client: aiohttp.ClientSession | None = None
         self._loop: asyncio.BaseEventLoop | None = None
         self._instruments = weakref.WeakSet()
+        self._proxies: list[str] = proxies or []
 
     async def install_client(self, client: Any):
         """
@@ -203,17 +204,41 @@ class PyOnVista:
         request_headers = dict(kwargs.get('headers', {}))
         request_headers['User-Agent'] = random.choice(USER_AGENTS)
         kwargs['headers'] = request_headers
-        
-        async with self._client.get(url, *args, **kwargs) as response:
-            if response.status < 300:
-                return dict(await response.json())
-            else:
-                # Log failed requests for debugging
-                text = await response.text()
-                print(f"Warning: API request failed with status {response.status}: {url}")
-                if text:
-                    print(f"  Response: {text[:200]}")
-                return None
+
+        chosen_proxy = random.choice(self._proxies) if self._proxies else None
+        if chosen_proxy:
+            kwargs['proxy'] = chosen_proxy
+
+        # Throttling to avoid rate limits
+        await asyncio.sleep(1.5)  # Delay of 1.5 seconds between requests
+
+        # Adaptive throttling to handle rate limits
+        if not hasattr(self, '_throttle_delay'):
+            self._throttle_delay = 1.5  # Initial delay in seconds
+
+        await asyncio.sleep(self._throttle_delay)
+
+        # Adjust delay based on response status
+        try:
+            print(f"Making API request to {url} with headers {kwargs.get('headers', {})}{' via proxy ' + chosen_proxy if chosen_proxy else ''}")
+            async with self._client.get(url, *args, **kwargs) as response:
+                if response.status == 403:
+                    self._throttle_delay = min(self._throttle_delay * 2, 10)  # Exponential backoff, max 10s
+                else:
+                    self._throttle_delay = max(self._throttle_delay / 2, 1.5)  # Gradual reduction, min 1.5s
+                if response.status < 300:
+                    return dict(await response.json())
+                else:
+                    text = await response.text()
+                    proxy_info = f" via proxy {chosen_proxy}" if chosen_proxy else ""
+                    print(f"Warning: API request failed with status {response.status}{proxy_info}: {url}")
+                    if text:
+                        print(f"  Response: {text[:200]}")
+                    return None
+        except (TimeoutError, aiohttp.ClientProxyConnectionError, aiohttp.ServerConnectionError) as exc:
+            proxy_info = f" via proxy {chosen_proxy}" if chosen_proxy else ""
+            print(f"Warning: Connection error{proxy_info}: {type(exc).__name__}: {exc} — URL: {url}")
+            return None
 
 
     async def search_instrument(self, key: str) -> list[Instrument]:
@@ -312,7 +337,11 @@ class PyOnVista:
             startDate=start.strftime("%Y-%m-%d"),
         )
 
-        data = await self._get_json(request_data)
+        # Add required headers for chart_history requests
+        chart_history_headers = {
+            "x-ctr": "537xyz792SKP"
+        }
+        data = await self._get_json(request_data, headers=chart_history_headers)
 
         result = []
         if data:
